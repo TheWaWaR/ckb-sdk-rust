@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::error::Error as StdErr;
 
 use ckb_hash::blake2b_256;
@@ -21,59 +22,88 @@ use ckb_types::{
     prelude::*,
     H160, H256,
 };
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 /// Transfer some CKB from one multisig(without since) address to other address
 /// # Example:
-///     ./target/debug/examples/transfer_from_multisig \
-///       --sender-key <key-hex> \
-///       --sender-key <key-hex> \
+///     ./target/debug/examples/transfer_from_multisig gen-tx \
 ///       --receiver <address> \
-///       --capacity 120.0
-///       --require-first-n 0
-///       --threshold 2
-///       --sighash-address <address>
-///       --sighash-address <address>
-///       --sighash-address <address>
+///       --capacity 120.0 \
+///       --require-first-n 0 \
+///       --threshold 2 \
+///       --sighash-address <address> \
+///       --sighash-address <address> \
+///       --sighash-address <address> \
+///       --tx-file tx.json
+///
+///     ./target/debug/examples/transfer_from_multisig sign-tx \
+///       --sender-key <key-hex> \
+///       --tx-file tx.json
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
-struct Args {
-    /// The sender private keys (hex string, must presented in `sighash_address`)
-    #[clap(long, value_name = "KEY")]
-    sender_key: Vec<H256>,
-
-    /// The receiver address
-    #[clap(long, value_name = "ADDRESS")]
-    receiver: Address,
-
-    /// The capacity to transfer (unit: CKB, example: 102.43)
-    #[clap(long, value_name = "CKB")]
-    capacity: HumanCapacity,
-
-    /// Require first n signatures of corresponding pubkey
-    #[clap(long, value_name = "NUM")]
-    require_first_n: u8,
-
-    /// Multisig threshold
-    #[clap(long, value_name = "NUM")]
-    threshold: u8,
-
-    /// Normal sighash address
-    #[clap(long, value_name = "ADDRESS")]
-    sighash_address: Vec<Address>,
-
-    /// CKB rpc url
-    #[clap(long, value_name = "URL", default_value = "http://127.0.0.1:8114")]
-    ckb_rpc: String,
-
-    /// CKB indexer rpc url
-    #[clap(long, value_name = "URL", default_value = "http://127.0.0.1:8116")]
-    ckb_indexer: String,
+#[clap(propagate_version = true)]
+struct Cli {
+    #[clap(subcommand)]
+    command: Commands,
 }
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Generate the transaction
+    GenTx {
+        /// The receiver address
+        #[clap(long, value_name = "ADDRESS")]
+        receiver: Address,
+
+        /// The capacity to transfer (unit: CKB, example: 102.43)
+        #[clap(long, value_name = "CKB")]
+        capacity: HumanCapacity,
+
+        /// Require first n signatures of corresponding pubkey
+        #[clap(long, value_name = "NUM")]
+        require_first_n: u8,
+
+        /// Multisig threshold
+        #[clap(long, value_name = "NUM")]
+        threshold: u8,
+
+        /// Normal sighash address
+        #[clap(long, value_name = "ADDRESS")]
+        sighash_address: Vec<Address>,
+
+        /// The output transaction file (.json)
+        tx_file: PathBuf,
+
+        /// CKB rpc url
+        #[clap(long, value_name = "URL", default_value = "http://127.0.0.1:8114")]
+        ckb_rpc: String,
+
+        /// CKB indexer rpc url
+        #[clap(long, value_name = "URL", default_value = "http://127.0.0.1:8116")]
+        ckb_indexer: String,
+    },
+    /// Sign the transaction
+    SignTx {
+        /// The sender private keys (hex string, must presented in `sighash_address`)
+        #[clap(long, value_name = "KEY")]
+        sender_key: Vec<H256>,
+
+        /// The transaction file (.json)
+        tx_file: PathBuf,
+
+        /// CKB rpc url
+        #[clap(long, value_name = "URL", default_value = "http://127.0.0.1:8114")]
+        ckb_rpc: String,
+
+        /// CKB indexer rpc url
+        #[clap(long, value_name = "URL", default_value = "http://127.0.0.1:8116")]
+        ckb_indexer: String,
+    }
+}
+
 
 fn main() -> Result<(), Box<dyn StdErr>> {
     // Parse arguments
-    let args = Args::parse();
+    let args = Cli::parse();
     let multisig_config = {
         if args.sighash_address.is_empty() {
             return Err("Must have at least one sighash_address".to_string().into());
