@@ -44,6 +44,11 @@ pub fn assemble_new_tx(
                 {
                     // Parse lock data
                     let witness_data = witness.raw_data();
+                    // FIXME: quick fix
+                    if witness_data.is_empty() {
+                        builder = builder.witness(witness);
+                        continue;
+                    }
                     let current_witness: WitnessArgs =
                         WitnessArgs::from_slice(witness_data.as_ref())?;
                     let lock_field = current_witness
